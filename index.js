@@ -1,6 +1,105 @@
 const Discord = require("discord.js");
 const botconfig = require("./botconfig.json");
 const ms = require("ms");
+var ArgumentParser = require('argparse').ArgumentParser;
+
+ArgumentParser.prototype.exit = function (status, message) {
+  if (message) {
+    if (status === 0) {
+      this._printMessage(message);
+    } else {
+      this._printMessage(message, process.stderr);
+    }
+  }
+}
+
+//Fix stream
+ArgumentParser.prototype._printMessage = function (message, stream) {
+  //if (!stream) {
+  //  stream = process.stdout;
+  //}
+  if (message) {
+    this.XoutXvarX += ("" + message);
+  }
+};
+
+function initParser() {
+  var parser = new ArgumentParser({
+    version: 'Pre-Alpha 0.1',
+    addHelp:true,
+    description: 'DiscordChatBot'
+  });
+  parser.XoutXvarX = "";
+  var cmdParser = parser.addSubparsers({
+    dest: "cmds"
+  });
+  var quitSubparser = cmdParser.addParser("stop", { addHelp: true, help: "Stops the chatbots."})
+  var startSubparser = cmdParser.addParser("start", { addHelp: true, help: "Start the bots."})
+  startSubparser.addArgument(
+    [ '-d', '--delay', '--time' ],
+    {
+      help: 'Sets the delay between question and answer.',
+      nargs: 1,
+      defaultValue: "1s"
+    }
+  );
+  startSubparser.addArgument(
+    [ '-t', '--topic'],
+    {
+      help: 'Sets the topic the bots will chat about.',
+      nargs: 1
+    }
+  );
+  var configSubparser = cmdParser.addParser("config", { addHelp: true, help: "Configure the bots."})
+  configSubparser.addArgument(
+    [ '-a', '-u1', '--u1', '-user1', '--user1', '-username1', '--username1', '-name1', '--name1'],
+    {
+      help: 'Sets the username of Bot1.',
+      nargs: 1
+    }
+  );
+  configSubparser.addArgument(
+    [ '-b', '-u2', '--u2', '-user2', '--user2', '-username2', '--username2', '-name2', '--name2'],
+    {
+      help: 'Sets the username of Bot2.',
+      nargs: 1
+    }
+  );
+  configSubparser.addArgument(
+    [ '-g1' ],
+    {
+      help: 'Sets Bot1s gender.',
+      nargs: 1,
+      choices: ['F', 'M', 'U']
+    }
+  );
+  configSubparser.addArgument(
+    [ '-g2' ],
+    {
+      help: 'Sets Bot2s gender.',
+      nargs: 1,
+      choices: ['F', 'M', 'U']
+    }
+  );
+  return parser;
+}
+
+//syntax
+//tqtalk --delay [delay] --username1 [username1]:[M,F] --username2 [username2]:[M,F] --topic [TOPIC] --fault %                                   --realistic          --everyone //@everyone in every message
+//       -d              -u1                           -u2                            -t             -f % (Gets worse every time spelling errors)   -r adapt type speed -e
+// --help -h
+//
+
+/*process
+    .on('unhandledRejection', (reason, p) => {
+        console.error(reason, 'Unhandled Rejection at Promise', p);
+    })
+    .on('uncaughtException', err => {
+        console.error(err, 'Uncaught Exception thrown');
+        process.exit(1);
+    });*/
+
+// Das ist wie eine HashMap irgendwie      http://nodeca.github.io/argparse/#Namespace
 
 const bot1 = new Discord.Client({disableEveryone: true});
 bot1.login(botconfig.Bot1.SToken + "");
@@ -19,24 +118,24 @@ const arr = [["Wie geht es dir?", "Mir geht es gut."],
 // npm install discord.js
 // nodemon .\index.js
 // https://discordapp.com/developers/applications/
-
-bot1.on("ready", async () => {
-  console.log(`${bot1.user.username} is online!`);
-  if(Math.random() <= 0.05 && botconfig.Bot1.gender === "MALE")
-    bot1.user.setActivity("dir beim Duschen zu", {type: "WATCHING"});
+function statusUpdate(bot, gender) {
+  console.log(`${bot.user.username} is online!`);
+  if(Math.random() <= 0.05 && gender === "MALE")
+    bot.user.setActivity("dir beim Duschen zu", {type: "WATCHING"});
   else
-    bot1.user.setActivity("dir zu", {type: "WATCHING"});
+    bot.user.setActivity("dir zu", {type: "WATCHING"});
+}
+bot1.on("ready", async () => {
+  statusUpdate(bot1, botconfig.Bot1.gender)
 });
 bot2.on("ready", async () => {
-  console.log(`${bot2.user.username} is online!`);
-  if(Math.random() <= 0.05 && botconfig.Bot2.gender === "MALE")
-    bot2.user.setActivity("dir beim Duschen zu", {type: "WATCHING"});
-  else
-    bot2.user.setActivity("dir zu", {type: "WATCHING"});
+  statusUpdate(bot2, botconfig.Bot2.gender)
 });
 
+// https://hastebin.com/puqaboqore    <---- Open this
+
 var data = new Map();
-//{channel, turn, firstquestion, stopping, waiting}
+//{channel, turn, firstquestion, stoppding, waiting}
 // turn
 // 0 -> bot1
 // 1 -> bot2
@@ -115,10 +214,28 @@ bot1.on("message", async message => {
 
   if(!message.author.bot) {
     let messageArray = message.content.split(" ");
-    let cmd = messageArray[0];
-    let args = messageArray.slice(1);
+    let cmd = messageArray;
+    if(messageArray.length == 0)
+    //error msg
+      return;
+    let user = getUserFromMention(messageArray[0]);
+    if(user) {
+      //check user id
+      if(user.id != bot1.id && user.id != bot2.id)
+        return;
 
-    if(cmd === "tqtalk") {
+      if(messageArray.length <= 2) {
+        message.delete(1000).catch(() => {
+          console.log(error);
+        });
+        //show help
+        return;
+      }
+      cmd = messageArray.slice(1);
+    }
+
+    if(cmd[0].startsWith("tq")) {
+      cmd[0] = cmd[0].replace("tq", "");
 
       message.delete(1000).catch(() => {
         console.log(error);
@@ -130,7 +247,16 @@ bot1.on("message", async message => {
         console.log(error);
       });
 
-      if(!data.get(channel)) {
+      try {
+        var parser = initParser();
+        message.channel.send("PARSERRET:" + JSON.stringify(parser.parseArgs(cmd)) + "\nPARSEROUT" + parser.XoutXvarX);
+      } catch(e) {
+        message.channel.send(e + "")
+      }
+
+      /*if(!data.get(channel)) {
+
+        //start
 
         var obj = new InstanceData(channel);
 
@@ -157,6 +283,11 @@ bot1.on("message", async message => {
           obj.randomQuestion(bot2);
       }
     } else if(cmd === "tqstop") {
+
+      message.delete(1000).catch(() => {
+        console.log(error);
+      });
+
       if(!message.member.hasPermission("ADMINISTRATOR")) return message.reply("You do not have permissions to use this command!").then(msg => {
         msg.delete(5000);
       }).catch(() => {
@@ -177,19 +308,51 @@ bot1.on("message", async message => {
       if(ldata.msgTimeout)
         clearTimeout(ldata.msgTimeout);
 
-      message.delete(1000).catch(() => {
-        console.log(error);
-      });
-
       setTimeout(() => {
         data.delete(ldata.channel);
-      }, 2000);
+      }, 2000);*/
     }
   }
 });
 
+function getUserFromMention(mention) {
+	if (!mention) return;
+
+  // https://discordjs.guide/miscellaneous/parsing-mention-arguments.html#implementation
+  // Client ID: 29222090666XXXXXXX
+  // Client Mention: <@ID>
+
+	if (mention.startsWith('<@') && mention.endsWith('>')) {
+		mention = mention.slice(2, -1);
+
+		if (mention.startsWith('!')) {
+			mention = mention.slice(1);
+		}
+
+		return client.users.get(mention);
+	}
+}
+
+// was soll @Bot machen? help anzeigen?
+
+/*
+
+https://www.npmjs.com/package/argparse !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+client.on('message', message => {
+	if (!message.content.startsWith(config.prefix)) return;
+
+	const withoutPrefix = message.content.slice(config.prefix.length);
+	const split = withoutPrefix.split(/ +/);
+	const command = split[0];
+	const args = split.slice(1);
+});
+*/
+
+// Was jetzt?
+//support *mention* in command
 //syntax
-//tqtalk --delay [delay] --username1 [username1]:[M,F] --username2 [username2]:[M,F] --topic [TOPIC] --fault                                     --realistic          --everyone //@everyone in every message
-//       -d              -u1                           -u2                            -t             -f (Gets worse every time spelling errors)   -r adapt type speed -e
+//tqtalk --delay [delay] --username1 [username1]:[M,F] --username2 [username2]:[M,F] --topic [TOPIC] --fault %                                     --realistic          --everyone //@everyone in every message
+//       -d              -u1                           -u2                            -t             -f % (Gets worse every time spelling errors)   -r adapt type speed -e
 // --help -h
 //
