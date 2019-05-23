@@ -4,14 +4,33 @@ const ms = require("ms");
 var ArgumentParser = require('argparse').ArgumentParser;
 
 ArgumentParser.prototype.exit = function (status, message) {
-  if (message) {
-    if (status === 0) {
-      this._printMessage(message);
-    } else {
-      this._printMessage(message, process.stderr);
-    }
-  }
+  //console.log("EXIT CALLED?")
+  //console.trace();
+  throw message
 }
+
+ArgumentParser.prototype.error = function (err) {
+
+  if(!this.used) {
+    this.printUsage();
+    this.used = "ignored";
+  }
+
+  if(!err)
+    throw err
+
+  var message;
+  if (err instanceof Error) {
+    message = err.message;
+  } else {
+    message = err;
+  }
+
+  if(!message.endsWith('\n'))
+    message += '\n'
+
+  throw message;
+};
 
 //Fix stream
 ArgumentParser.prototype._printMessage = function (message, stream) {
@@ -19,28 +38,33 @@ ArgumentParser.prototype._printMessage = function (message, stream) {
   //  stream = process.stdout;
   //}
   if (message) {
-    this.XoutXvarX += ("" + message);
+    if(this.XoutXparent) {
+      this.XoutXparent.XoutXvarX += ("" + message)
+    } else
+      this.XoutXvarX  += ("" + message);
   }
 };
 
-function initParser() {
+function initParser(prefix) {
   var parser = new ArgumentParser({
-    version: 'Pre-Alpha 0.1',
-    addHelp:true,
-    description: 'DiscordChatBot'
+    //version: 'Pre-Alpha 0.1',
+    description: 'DiscordChatBot',
+    prog: `${prefix}`
   });
   parser.XoutXvarX = "";
   var cmdParser = parser.addSubparsers({
     dest: "cmds"
   });
-  var quitSubparser = cmdParser.addParser("stop", { addHelp: true, help: "Stops the chatbots."})
-  var startSubparser = cmdParser.addParser("start", { addHelp: true, help: "Start the bots."})
+  var quitSubparser = cmdParser.addParser("stop", { help: "Stops the chatbots."})
+  quitSubparser.XoutXparent = parser;
+  var startSubparser = cmdParser.addParser("start", { help: "Start the bots."})
+  startSubparser.XoutXparent = parser;
   startSubparser.addArgument(
     [ '-d', '--delay', '--time' ],
     {
       help: 'Sets the delay between question and answer.',
       nargs: 1,
-      defaultValue: "1s"
+      defaultValue: ["1s"]
     }
   );
   startSubparser.addArgument(
@@ -50,7 +74,9 @@ function initParser() {
       nargs: 1
     }
   );
-  var configSubparser = cmdParser.addParser("config", { addHelp: true, help: "Configure the bots."})
+  //startSubparser.addArgument([ '-h', '--help'], { help: 'Show this help message and exit.', nargs: 0, action: "help"})
+  var configSubparser = cmdParser.addParser("config", { help: "Configure the bots."})
+  configSubparser.XoutXparent = parser;
   configSubparser.addArgument(
     [ '-a', '-u1', '--u1', '-user1', '--user1', '-username1', '--username1', '-name1', '--name1'],
     {
@@ -218,6 +244,7 @@ bot1.on("message", async message => {
     if(messageArray.length == 0)
     //error msg
       return;
+
     let user = getUserFromMention(messageArray[0]);
     if(user) {
       //check user id
@@ -225,9 +252,10 @@ bot1.on("message", async message => {
         return;
 
       if(messageArray.length <= 2) {
-        message.delete(1000).catch(() => {
-          console.log(error);
-        });
+        if(botconfig.removeMessages)
+          message.delete(1000).catch(() => {
+            console.log(error);
+          });
         //show help
         return;
       }
@@ -237,21 +265,37 @@ bot1.on("message", async message => {
     if(cmd[0].startsWith("tq")) {
       cmd[0] = cmd[0].replace("tq", "");
 
-      message.delete(1000).catch(() => {
-        console.log(error);
-      });
+      cmd = cmd.filter(Boolean);
+
+      if(botconfig.removeMessages)
+        message.delete(1000).catch(() => {
+          console.log(error);
+        });
 
       if(!message.member.hasPermission("ADMINISTRATOR")) return message.reply("You do not have permissions to use this command!").then(msg => {
-        msg.delete(5000);
+        if(botconfig.removeMessages)
+          msg.delete(5000);
       }).catch(() => {
         console.log(error);
       });
 
+      var parser = initParser('tq');
       try {
-        var parser = initParser();
-        message.channel.send("PARSERRET:" + JSON.stringify(parser.parseArgs(cmd)) + "\nPARSEROUT" + parser.XoutXvarX);
+        console.dir(cmd)
+        var ret = JSON.stringify(parser.parseArgs(cmd));
+        if(parser.XoutXvarX)
+          message.channel.send(parser.XoutXvarX);
+        console.log("PARSERRET:" + ret)
       } catch(e) {
-        message.channel.send(e + "")
+        var msg
+        if(e)
+          msg = e
+        else
+          msg = ""
+        if(parser.XoutXvarX)
+          msg += parser.XoutXvarX
+        message.channel.send(msg)
+        return;
       }
 
       /*if(!data.get(channel)) {

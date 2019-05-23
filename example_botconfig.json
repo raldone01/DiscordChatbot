@@ -6,5 +6,8 @@
   "Bot2" : {
     "SToken" : "",
     "gender" : ""
+  },
+  "Config" : {
+    "removeMessages" : false
   }
 }
