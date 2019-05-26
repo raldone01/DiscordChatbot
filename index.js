@@ -11,9 +11,11 @@ ArgumentParser.prototype.exit = function (status, message) {
 
 ArgumentParser.prototype.error = function (err) {
 
+  var firstTime = false
+
   if(!this.used) {
-    this.printUsage();
     this.used = "ignored";
+    firstTime = true;
   }
 
   if(!err)
@@ -21,6 +23,8 @@ ArgumentParser.prototype.error = function (err) {
 
   var message;
   if (err instanceof Error) {
+    if(firstTime)
+      this.printUsage();
     message = err.message;
   } else {
     message = err;
@@ -32,11 +36,7 @@ ArgumentParser.prototype.error = function (err) {
   throw message;
 };
 
-//Fix stream
 ArgumentParser.prototype._printMessage = function (message, stream) {
-  //if (!stream) {
-  //  stream = process.stdout;
-  //}
   if (message) {
     if(this.XoutXparent) {
       this.XoutXparent.XoutXvarX += ("" + message)
@@ -53,12 +53,16 @@ function initParser(prefix) {
   });
   parser.XoutXvarX = "";
   var cmdParser = parser.addSubparsers({
-    dest: "cmds"
+    dest: "command"
   });
-  var quitSubparser = cmdParser.addParser("stop", { help: "Stops the chatbots."})
-  quitSubparser.XoutXparent = parser;
   var startSubparser = cmdParser.addParser("start", { help: "Start the bots."})
   startSubparser.XoutXparent = parser;
+  startSubparser.addArgument(
+    ['-f', '--faultz'],
+    {
+      help: 'Sets the fault percentages.'
+    }
+  )
   startSubparser.addArgument(
     [ '-d', '--delay', '--time' ],
     {
@@ -74,18 +78,21 @@ function initParser(prefix) {
       nargs: 1
     }
   );
-  //startSubparser.addArgument([ '-h', '--help'], { help: 'Show this help message and exit.', nargs: 0, action: "help"})
-  var configSubparser = cmdParser.addParser("config", { help: "Configure the bots."})
+  var quitSubparser = cmdParser.addParser("stop", { help: "Stops the chatbots."})
+  quitSubparser.XoutXparent = parser;
+  var configSubparser = cmdParser.addParser("config", {
+    help: "Configure the bots serverwide."
+  })
   configSubparser.XoutXparent = parser;
   configSubparser.addArgument(
-    [ '-a', '-u1', '--u1', '-user1', '--user1', '-username1', '--username1', '-name1', '--name1'],
+    [ '-a', '--u1', '--user1', '--username1', '--nickname1', '--name1'],
     {
       help: 'Sets the username of Bot1.',
       nargs: 1
     }
   );
   configSubparser.addArgument(
-    [ '-b', '-u2', '--u2', '-user2', '--user2', '-username2', '--username2', '-name2', '--name2'],
+    [ '-b', '--u2', '--user2', '--username2', '--nickname2', '--name2'],
     {
       help: 'Sets the username of Bot2.',
       nargs: 1
@@ -116,63 +123,173 @@ function initParser(prefix) {
 // --help -h
 //
 
-/*process
+process
     .on('unhandledRejection', (reason, p) => {
         console.error(reason, 'Unhandled Rejection at Promise', p);
     })
     .on('uncaughtException', err => {
         console.error(err, 'Uncaught Exception thrown');
         process.exit(1);
-    });*/
+    });
 
-// Das ist wie eine HashMap irgendwie      http://nodeca.github.io/argparse/#Namespace
+var bots = []
 
-const bot1 = new Discord.Client({disableEveryone: true});
-bot1.login(botconfig.Bot1.SToken + "");
+async function statusUpdate() {
+  var bot = this
+  console.log(`${bot.Bot.user.username} is online!`);
+  if(Math.random() <= 0.05 && bot.gender === "MALE")
+    bot.Bot.user.setActivity("dir beim Duschen zu", {type: "WATCHING"});
+  else
+    bot.Bot.user.setActivity("dir zu", {type: "WATCHING"});
+}
 
-const bot2 = new Discord.Client({disableEveryone: true});
-bot2.login(botconfig.Bot2.SToken + "");
+//build the defaultServerConf
+var defaultServerConf = {
+  prefix: botconfig.Config.prefix,
+  removeMessages: botconfig.Config.removeMessages,
+  bots: [],
+  delay: botconfig.Config.minDelay
+}
+//read the bots from the botconfig
+for(it in botconfig.Bots) {
+  var curBot = bots[it] = botconfig.Bots[it]
+  curBot.Bot = new Discord.Client({disableEveryone: true})
+  curBot.Bot.login(curBot.sToken)
+  curBot.Bot.on("ready", statusUpdate.bind(curBot))
 
-console.log(`BOT1: ${botconfig.Bot1.SToken}`);
-console.log(`BOT2: ${botconfig.Bot2.SToken}`);
-
-const prefix = "tq";
+  //add Bot to defaultServerConf
+  defaultServerConf.bots[it] = {}
+  if(curBot.gender)
+    defaultServerConf.bots[it].gender = curBot.gender
+  if(curBot.faultz)
+    defaultServerConf.bots[it].faultz = curBot.faultz
+  if(curBot.nickname)
+    defaultServerConf.bots[it].nickname = curBot.nickname
+}
 
 const arr = [["Wie geht es dir?", "Mir geht es gut."],
              ["Was machst du gerade?", "Ich mache gerade nichts."]];
 
-// npm install discord.js
-// nodemon .\index.js
-// https://discordapp.com/developers/applications/
-function statusUpdate(bot, gender) {
-  console.log(`${bot.user.username} is online!`);
-  if(Math.random() <= 0.05 && gender === "MALE")
-    bot.user.setActivity("dir beim Duschen zu", {type: "WATCHING"});
-  else
-    bot.user.setActivity("dir zu", {type: "WATCHING"});
+/**per server -> key is the server id
+persistent (perhaps loki.js)
+contains:
+bots: -> default per bot settings
+  nickname
+  gender
+  fautlz: percentages -> spelling errors
+removeMessages: true|false
+prefix
+*/
+var configData = new Map();
+
+function getServerConf(serverId) {
+  return data.get(serverId)
 }
-bot1.on("ready", async () => {
-  statusUpdate(bot1, botconfig.Bot1.gender)
-});
-bot2.on("ready", async () => {
-  statusUpdate(bot2, botconfig.Bot2.gender)
-});
 
-// https://hastebin.com/puqaboqore    <---- Open this
+function putServerConf(serverId, serverConf) {
+  data.set(serverId, serverConf)
+}
 
+/*
+Takes json:
+{
+  bots : {
+    fautlz, //percentages -> spelling errors
+    gender,
+    nickname
+  },
+  removeMessages,
+  prefix
+}
+*/
+function createServerConf(arg) {
+  var ret = JSON.parse(JSON.stringify(defaultServerConf))
+  for(var i = 0; i < arg.bots.length; i++) {
+    if(arg.bots[i].faultz)
+      ret.bots[i].faultz = arg.bots[i].faultz;
+    if(arg.bots[i].gender)
+      ret.bots[i].gender = arg.bots[i].gender;
+    if(arg.bots[i].nickname)
+      ret.bots[i].nickname = arg.bots[i].nickname;
+  }
+  if(arg.removeMessages)
+    ret.removeMessages = arg.removeMessages
+  if(arg.prefix)
+    ret.prefix = arg.prefix
+}
+
+/**per channel -> key is the channel id
+not persistent
+contains:
+  bots:
+    fautlz: percentages -> spelling errors
+    gender
+    nickname
+  removeMessages: true|false
+  delay: time[ms]
+  topic: topic
+  everyone: true|false
+  channelId
+  serverId
+*/
 var data = new Map();
-//{channel, turn, firstquestion, stoppding, waiting}
-// turn
-// 0 -> bot1
-// 1 -> bot2
 
-function InstanceData(channel) {
-  this.waiting = false;
-  this.stopping = false;
-  this.firstquestion = true;
-  this.channel = channel;
+function getDataObject(channelId) {
+  return data.get(channelId)
 }
-InstanceData.prototype.answer = function(question) {
+
+function putDataObject(dataObj) {
+  data.set(dataObj.channelId, dataObj)
+}
+
+/**
+Takes json:
+{
+  serverId,
+  channelId,
+  bots : {
+    fautlz, //percentages -> spelling errors
+    gender,
+    nickname
+  },
+  delay,
+  removeMessages,
+  topic,
+  everyone
+}
+*/
+function createDataObject(arg) {
+  var serverConf = getServerConf(arg.serverId)
+  var ret = JSON.parse(JSON.stringify(serverConf))
+  ret.channelId = arg.channelId;
+  ret.serverId = arg.serverId;
+  for(var i = 0; i < arg.bots.length; i++) {
+    if(arg.bots[i].faultz)
+      ret.bots[i].faultz = arg.bots[i].faultz;
+    if(arg.bots[i].gender)
+      ret.bots[i].gender = arg.bots[i].gender;
+    if(arg.bots[i].nickname)
+      ret.bots[i].nickname = arg.bots[i].nickname;
+  }
+  if(arg.delay)
+    ret.delay = arg.delay;
+  if(ret.delay < botconfig.Config.minDelay)
+    throw new Error("Delay too small!")
+  if(arg.removeMessages)
+    ret.removeMessages = arg.removeMessages;
+  ret.everyone = arg.everyone;
+  ret.topic = arg.topic;
+
+  Object.create(DataObject.prototype, ret)
+
+  return ret
+}
+
+function DataObject() {}
+DataObject.prototype.answer = function(question) {
+  var bot1 = bots[0].Bot
+  var bot2 = bots[1].Bot
+
   //bot to answer next
   var curbot;
   //bot that questioned
@@ -186,8 +303,7 @@ InstanceData.prototype.answer = function(question) {
     otherbot = bot1;
   }
 
-  if(!this.waiting && !this.stopping)
-    this.waiting = true;
+  if(!this.stopping)
     this.msgTimeout = setTimeout(() => {
       if(this.channel) {
         var ans;
@@ -210,10 +326,13 @@ InstanceData.prototype.answer = function(question) {
           }, this.delay);
 
       }
-      waiting = false;
     }, this.delay);
 }
-InstanceData.prototype.randomQuestion = function(bot) {
+
+DataObject.prototype.randomQuestion = function(bot) {
+
+  var bot1 = bots[0].Bot
+  var bot2 = bots[1].Bot
 
   //invert
   this.turn = (bot === bot1) ? 1 : 0;
@@ -232,9 +351,28 @@ InstanceData.prototype.randomQuestion = function(bot) {
 
 }
 
-bot1.on("message", async message => {
+function getUserFromMention(mention) {
+	if (!mention) return;
+
+  // https://discordjs.guide/miscellaneous/parsing-mention-arguments.html#implementation
+  // Client ID: 29222090666XXXXXXX
+  // Client Mention: <@ID>
+
+	if (mention.startsWith('<@') && mention.endsWith('>')) {
+		mention = mention.slice(2, -1);
+
+		if (mention.startsWith('!')) {
+			mention = mention.slice(1);
+		}
+
+		return client.users.get(mention);
+	}
+}
+
+bots[0].Bot.on("message", async message => {
   if(message.channel.type === "dm") return;
-  if(!message.channel.members.find(x => x.id ===  bot1.user.id) && !message.channel.members.find('id', bot2.user.id)) return;
+
+  //TODO: Check how many bots are available in the channel if(!message.channel.members.find(x => x.id ===  bot1.user.id) && !message.channel.members.find('id', bot2.user.id)) return;
 
   var channel = message.channel.id;
 
@@ -287,13 +425,11 @@ bot1.on("message", async message => {
           message.channel.send(parser.XoutXvarX);
         console.log("PARSERRET:" + ret)
       } catch(e) {
-        var msg
-        if(e)
-          msg = e
-        else
-          msg = ""
+        var msg = ""
         if(parser.XoutXvarX)
-          msg += parser.XoutXvarX
+          msg = parser.XoutXvarX
+        if(e)
+          msg += e
         message.channel.send(msg)
         return;
       }
@@ -359,23 +495,16 @@ bot1.on("message", async message => {
   }
 });
 
-function getUserFromMention(mention) {
-	if (!mention) return;
+/*
 
-  // https://discordjs.guide/miscellaneous/parsing-mention-arguments.html#implementation
-  // Client ID: 29222090666XXXXXXX
-  // Client Mention: <@ID>
+//{channel, turn, firstquestion, stoppding, waiting}
+// turn
+// 0 -> bot1
+// 1 -> bot2
 
-	if (mention.startsWith('<@') && mention.endsWith('>')) {
-		mention = mention.slice(2, -1);
 
-		if (mention.startsWith('!')) {
-			mention = mention.slice(1);
-		}
 
-		return client.users.get(mention);
-	}
-}
+
 
 // was soll @Bot machen? help anzeigen?
 

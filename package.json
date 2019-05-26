@@ -1,0 +1,24 @@
+{
+  "name": "discordbot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raldone01/DiscordChatbot.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/raldone01/DiscordChatbot/issues"
+  },
+  "homepage": "https://github.com/raldone01/DiscordChatbot#readme",
+  "dependencies": {
+    "argparse": "^1.0.10",
+    "discord.js": "^11.5.0",
+    "ms": "^2.1.1"
+  }
+}

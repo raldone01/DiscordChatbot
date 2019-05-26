@@ -1,13 +1,21 @@
 {
-  "Bot1" : {
-    "SToken" : "",
-    "gender" : ""
-  },
-  "Bot2" : {
-    "SToken" : "",
-    "gender" : ""
-  },
+  "Bots" : [
+    {
+      "sToken" : "",
+      "gender" : "F|M|U",
+      "nickname" : "optional",
+      "faultz" : "optionalPercentage"
+    },
+    {
+      "sToken" : "",
+      "gender" : "F|M|U",
+      "nickname" : "optional",
+      "faultz" : "optionalPercentage"
+    }
+  ],
   "Config" : {
-    "removeMessages" : false
+    "removeMessages" : false,
+    "prefix" : "tq",
+    "minDelay" : 300
   }
 }
